@@ -97,6 +97,44 @@ export function playCanToss() {
   glugRun(now + 0.58, now + 1.96, 310);
 }
 
+function leafGrain(start, decay) {
+  const gain = noiseVoice(start, 0.06);
+  const high = context.createBiquadFilter();
+  high.type = "highpass";
+  high.frequency.value = 2800 + Math.random() * 4200;
+  const peak = (0.05 + Math.random() * 0.08) * decay;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(peak, start + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.02 + Math.random() * 0.03);
+  gain.connect(high).connect(master);
+}
+
+export function playPalmRustle() {
+  ensureContext();
+  const now = context.currentTime;
+  const duration = 1.9;
+
+  const bed = noiseVoice(now, duration + 0.25);
+  const high = context.createBiquadFilter();
+  high.type = "highpass";
+  high.frequency.value = 1800;
+  const shape = context.createBiquadFilter();
+  shape.type = "bandpass";
+  shape.Q.value = 0.55;
+  shape.frequency.setValueAtTime(4400, now);
+  shape.frequency.exponentialRampToValueAtTime(2500, now + duration);
+  bed.gain.setValueAtTime(0.0001, now);
+  bed.gain.exponentialRampToValueAtTime(0.13, now + 0.1);
+  bed.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.2);
+  bed.connect(high).connect(shape).connect(master);
+
+  let at = 0;
+  while (at < duration) {
+    leafGrain(now + at, Math.exp(-at * 1.5));
+    at += 0.012 + Math.random() * 0.055;
+  }
+}
+
 export function playBucketPour() {
   ensureContext();
   const now = context.currentTime;

@@ -8,7 +8,7 @@ import "./style.css";
 import { mobile, reducedMotion, motionScale, CAN_Z, smoothStep, easeOutBack } from "./shared.js";
 import { FLAVORS, DEFAULT_PALETTE } from "./flavors.js";
 import { oceanUniforms, setPaletteUniform, createOcean, sampleOcean } from "./ocean.js";
-import { playCanToss, playBucketPour } from "./audio.js";
+import { playCanToss, playBucketPour, playPalmRustle } from "./audio.js";
 import { createPoolside, triggerPalmSway, updatePalmSway } from "./poolside.js";
 import { initCanModule, createCan, applyFlavorToCan, preloadLabels, canLabelTextures } from "./can.js";
 import { createBucket } from "./bucket.js";
@@ -477,7 +477,10 @@ function handlePointerUp(event) {
   const picked = canFromPointer(event);
   if (picked?.bucket) triggerBucketScoop();
   else if (picked?.can) selectNextFlavor(picked.can);
-  else triggerPalmSway();
+  else {
+    triggerPalmSway();
+    playPalmRustle();
+  }
 }
 
 canvas.addEventListener("pointermove", handlePointerMove, { passive: true });
