@@ -30,7 +30,6 @@ function noiseVoice(start, duration) {
   return { source, gain };
 }
 
-// 캔 뚜껑이 찢어지는 짧은 파열음 + 탄산이 빠지는 긴 쉭 소리
 export function playCanOpen() {
   ensureContext();
   const now = context.currentTime;
@@ -56,7 +55,6 @@ export function playCanOpen() {
   fizz.gain.connect(fizzFilter).connect(master);
 }
 
-// 물방울 하나. 주파수가 위로 튀어 올라가는 게 물소리로 들리는 핵심
 function bubble(start, base) {
   const osc = context.createOscillator();
   osc.type = "sine";
@@ -71,7 +69,6 @@ function bubble(start, base) {
   osc.stop(start + 0.1);
 }
 
-// 양동이로 물을 퍼내 쏟는 소리: 굵은 물줄기 + 흩어지는 물방울
 export function playPour(duration = 1.8) {
   ensureContext();
   const now = context.currentTime;
