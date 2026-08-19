@@ -1,23 +1,19 @@
-# lab
+# pool-can
 
-Small WebGL experiments. Each one lives in its own folder.
+An interactive WebGL experiment featuring a nocturnal pool scene, built with Three.js.
 
-## pool-can
+Clicking the floating can causes the water to adopt the drink's color, propagating outward from the point of impact. Interacting with the poolside bucket drains the color, restoring the original state. Clicking anywhere else in the scene triggers a gentle sway in the surrounding palm trees.
 
-While everyone builds oceans, I built a pool.
+Live Demo: [can.growon.kr](https://can.growon.kr)
 
-A night pool rendered with Three.js, with one drink can floating in it. Click the can and the water takes on that flavor's color, spreading out from the point of impact. Click the bucket on the poolside to pour it back out. Click anywhere else and the palms sway.
+## Key Features
 
-**Live: [can.growon.kr](https://can.growon.kr)**
+- Custom GLSL Shaders & Physics: The water surface is driven by a custom vertex and fragment shader pair. The same wave calculations are synchronized on the CPU, ensuring the can and bucket float precisely on the rendered surface.
+- Dynamic Texture Generation: Can labels are rendered to a 2D canvas at runtime and applied as textures to the mesh. Introducing a new flavor requires only a new palette entry in `src/flavors.js`.
+- Post-Processing & Raycasting: A CRT curvature effect is applied globally across the scene. Pointer coordinates are inversely mapped through the distortion curve to ensure precise hit detection and raycasting.
+- Accessibility: Fully respects the `prefers-reduced-motion` media query by automatically scaling down wave amplitude, particle splashes, and ambient camera drift.
 
-### What's in it
-
-- Water surface driven by a custom GLSL vertex/fragment shader pair. The same wave function runs on the CPU too, so the can and the bucket float on the exact surface you see.
-- Can labels drawn into a 2D canvas at runtime and wrapped onto the mesh as a texture, so a new flavor is just a palette entry in `src/flavors.js`.
-- A CRT curvature pass over the whole scene. Pointer coordinates are warped through the same curve, so clicks land where they look like they land.
-- Honors `prefers-reduced-motion`: wave amplitude, splashes, and camera drift all scale down.
-
-### Running it
+## Local Development
 
 ```bash
 cd pool-can
@@ -25,8 +21,8 @@ npm install
 npm run dev
 ```
 
-Build with `npm run build`. Pushing to `main` builds this folder and publishes it to GitHub Pages.
+Run `npm run build` for a production bundle. Any push to `main` builds this folder and publishes it to GitHub Pages.
 
-### Stack
+## Stack
 
-Three.js `0.185.1`, Vite, no framework. Anton and Noto Sans KR come from Google Fonts.
+Three.js `0.185.1` and Vite, no framework. Anton and Noto Sans KR are served from Google Fonts.
