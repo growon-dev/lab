@@ -1,4 +1,4 @@
-name: Deploy pool-can to Pages
+name: Deploy lab to Pages
 
 on:
   push:
@@ -29,9 +29,15 @@ jobs:
           cache-dependency-path: pool-can/package-lock.json
       - run: npm ci
       - run: npm run build
+      - name: Assemble site
+        working-directory: .
+        run: |
+          mkdir -p _site/pool-can
+          cp -r site/. _site/
+          cp -r pool-can/dist/. _site/pool-can/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: pool-can/dist
+          path: _site
 
   deploy:
     needs: build
