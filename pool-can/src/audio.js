@@ -31,16 +31,16 @@ function noiseVoice(start, duration) {
 }
 
 function whoosh(start) {
-  const duration = 0.66;
+  const duration = 0.42;
   const gain = noiseVoice(start, duration);
   const band = context.createBiquadFilter();
   band.type = "bandpass";
   band.Q.value = 4.2;
   band.frequency.setValueAtTime(460, start);
-  band.frequency.exponentialRampToValueAtTime(2700, start + 0.3);
+  band.frequency.exponentialRampToValueAtTime(2700, start + 0.19);
   band.frequency.exponentialRampToValueAtTime(720, start + duration);
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(0.36, start + 0.17);
+  gain.gain.exponentialRampToValueAtTime(0.36, start + 0.11);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   gain.connect(band).connect(master);
 }
@@ -88,16 +88,16 @@ function glugRun(start, end, topPitch) {
   let pitch = topPitch;
   while (at < end) {
     glug(at, pitch);
-    at += 0.082 + Math.random() * 0.05;
-    pitch *= 0.958;
+    at += 0.155 + Math.random() * 0.07;
+    pitch *= 0.935;
   }
 }
 
 export function playCanToss() {
   ensureContext();
   const now = context.currentTime;
-  whoosh(now + 0.26);
-  glugRun(now + 0.58, now + 1.96, 310);
+  whoosh(now + 0.22);
+  glugRun(now + 0.72, now + 2.0, 310);
 }
 
 function leafGrain(start, decay) {
