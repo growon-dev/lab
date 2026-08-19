@@ -100,6 +100,11 @@ export function playCanToss() {
   glugRun(now + 0.72, now + 2.0, 310);
 }
 
+export function playCanNudge() {
+  ensureContext();
+  whoosh(context.currentTime + 0.02);
+}
+
 function leafGrain(start, decay) {
   const gain = noiseVoice(start, 0.06);
   const high = context.createBiquadFilter();
