@@ -1,0 +1,50 @@
+:root {
+  color-scheme: dark;
+  background: #05111b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #05111b;
+}
+
+body {
+  overscroll-behavior: none;
+}
+
+.experience {
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  overflow: hidden;
+  background: #05111b;
+}
+
+#pool-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#pool-canvas:active {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pool-canvas {
+    cursor: default;
+  }
+}
