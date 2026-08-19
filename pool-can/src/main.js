@@ -4,7 +4,7 @@ import "./style.css";
 import { mobile, reducedMotion, motionScale, CAN_Z, smoothStep, easeOutBack } from "./shared.js";
 import { FLAVORS, DEFAULT_PALETTE } from "./flavors.js";
 import { oceanUniforms, setPaletteUniform, createOcean, sampleOcean } from "./ocean.js";
-import { playCanToss, playBucketPour, playPalmRustle } from "./audio.js";
+import { playCanToss, playWhoosh, playBucketPour, playPalmRustle } from "./audio.js";
 import { createPoolside, triggerPalmSway, updatePalmSway } from "./poolside.js";
 import { initCanModule, createCan, applyFlavorToCan, preloadLabels, canLabelTextures } from "./can.js";
 import { createBucket } from "./bucket.js";
@@ -158,6 +158,7 @@ function selectNextFlavor(can) {
     nextStreamDropAt: 0.86,
     nextSplashAt: 0.78,
     landingSplashSpawned: false,
+    whooshedTurns: 0,
   };
   activeFlavorId = flavor.id;
 }
@@ -205,6 +206,12 @@ function updateCanTransforms(time, delta) {
       spin = reducedMotion
         ? Math.sin(spinTurns * Math.PI) * 0.28
         : spinTurns * Math.PI * 4 - windUp;
+
+      const turnsStarted = Math.ceil(spin / (Math.PI * 2));
+      if (turnsStarted > flavorTransition.whooshedTurns) {
+        flavorTransition.whooshedTurns = turnsStarted;
+        playWhoosh();
+      }
 
       const flightAmount = launchProgress * (1 - fallProgress);
       const airFactor = THREE.MathUtils.clamp(flightAmount, 0, 1);

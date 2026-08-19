@@ -93,11 +93,14 @@ function glugRun(start, end, topPitch) {
   }
 }
 
+export function playWhoosh() {
+  ensureContext();
+  whoosh(context.currentTime);
+}
+
 export function playCanToss() {
   ensureContext();
-  const now = context.currentTime;
-  whoosh(now + 0.22);
-  glugRun(now + 0.72, now + 2.0, 310);
+  glugRun(context.currentTime + 0.72, context.currentTime + 2.0, 310);
 }
 
 function leafGrain(start, decay) {
