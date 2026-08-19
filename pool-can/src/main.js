@@ -8,7 +8,7 @@ import "./style.css";
 import { mobile, reducedMotion, motionScale, CAN_Z, smoothStep, easeOutBack } from "./shared.js";
 import { FLAVORS, DEFAULT_PALETTE } from "./flavors.js";
 import { oceanUniforms, setPaletteUniform, createOcean, sampleOcean } from "./ocean.js";
-import { playCanOpen, playPour } from "./audio.js";
+import { playCanToss, playBucketPour } from "./audio.js";
 import { createPoolside, triggerPalmSway, updatePalmSway } from "./poolside.js";
 import { initCanModule, createCan, applyFlavorToCan, preloadLabels, canLabelTextures } from "./can.js";
 import { createBucket } from "./bucket.js";
@@ -129,7 +129,7 @@ function selectNextFlavor(can) {
   if (flavorTransition || bucketScoop) return;
   if (!can) return;
 
-  playCanOpen();
+  playCanToss();
 
   const nextFlavorIndex = (currentFlavorIndex + 1) % FLAVORS.length;
   const flavor = FLAVORS[nextFlavorIndex];
@@ -364,7 +364,7 @@ function updateFlavorTransition(time, delta) {
 
 function triggerBucketScoop() {
   if (flavorTransition || bucketScoop) return;
-  playPour();
+  playBucketPour();
   setPaletteUniform("uFrom", currentPalette);
   setPaletteUniform("uTo", DEFAULT_PALETTE);
   oceanUniforms.uFlavorAccent.value.setHex(DEFAULT_PALETTE.accent);
