@@ -51,9 +51,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.72;
 
-const CRT_FRAMING = 0.58;
+const FRAMING = 0.58;
 function framedFov(wideFov) {
-  return THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(wideFov) / 2) * CRT_FRAMING));
+  return THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(wideFov) / 2) * FRAMING));
 }
 
 const scene = new THREE.Scene();
