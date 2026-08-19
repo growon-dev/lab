@@ -1,9 +1,5 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import "./style.css";
 import { mobile, reducedMotion, motionScale, CAN_Z, smoothStep, easeOutBack } from "./shared.js";
 import { FLAVORS, DEFAULT_PALETTE } from "./flavors.js";
@@ -30,15 +26,7 @@ import {
 
 const canvas = document.querySelector("#pool-canvas");
 
-const CRT_CENTER_SCALE = 0.58;
-const CRT_CURVE = 0.3;
-
-// The CRT pass shows only the middle CRT_CENTER_SCALE of the buffer stretched to full screen, so the
-// scene has to be rendered that much larger just to break even with the display. Supersampling also
-// antialiases, which is why the renderer's own AA is off - MSAA on top would be paid-for and wasted.
-const supersample = mobile ? 1.25 : 1 / CRT_CENTER_SCALE;
-// ponytail: ceiling is deliberately expensive, updateFps() walks it back down if the GPU can't hold 40fps
-const maxDpr = Math.min(window.devicePixelRatio * supersample, mobile ? 2 : 2.6);
+const maxDpr = Math.min(window.devicePixelRatio, 2);
 const minDpr = Math.min(maxDpr, window.devicePixelRatio * 0.8);
 
 let renderer;
@@ -46,7 +34,7 @@ let renderer;
 try {
   renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: false,
+    antialias: true,
     alpha: false,
     powerPreference: "high-performance",
     stencil: false,
@@ -63,11 +51,16 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.72;
 
+const CRT_FRAMING = 0.58;
+function framedFov(wideFov) {
+  return THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(wideFov) / 2) * CRT_FRAMING));
+}
+
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(new THREE.Color(DEFAULT_PALETTE.fog).multiplyScalar(0.32).getHex(), 0.0055);
 
 const camera = new THREE.PerspectiveCamera(
-  mobile ? 55 : 46,
+  framedFov(mobile ? 55 : 46),
   window.innerWidth / window.innerHeight,
   0.1,
   900,
@@ -389,9 +382,7 @@ function updateBucket(time, delta) {
   let bucketZ;
 
   if (mobile) {
-    const aspect = window.innerWidth / window.innerHeight;
-    mapScreenThroughCrt(0.96, -0.8, aspect, bucketScreenPoint);
-    bucketScreenPoint.z = 0;
+    bucketScreenPoint.set(0.96, -0.8, 0);
     camera.updateMatrixWorld();
     bucketScreenPoint.unproject(camera);
     bucketScreenDirection.copy(bucketScreenPoint).sub(camera.position).normalize();
@@ -442,22 +433,11 @@ function updateBucket(time, delta) {
     2.6 + Math.sin(time * 1.7 * motionScale) * (0.08 + Math.abs(tilt) * 0.2);
 }
 
-// Mirrors the radius math in the CRT fragment shader - keep the two in step or clicks miss the can.
-function mapScreenThroughCrt(screenX, screenY, aspect, target) {
-  const radiusSquared = (screenX * Math.max(aspect, 1 / aspect)) ** 2 + screenY ** 2;
-  const distortion = smoothStep(radiusSquared * CRT_CURVE);
-  const crtScale = CRT_CENTER_SCALE + distortion * (1 - CRT_CENTER_SCALE);
-  target.x = screenX * crtScale;
-  target.y = screenY * crtScale;
-  return target;
-}
-
 function canFromPointer(event) {
   const rect = canvas.getBoundingClientRect();
   const screenX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   const screenY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  const aspect = rect.width / rect.height;
-  mapScreenThroughCrt(screenX, screenY, aspect, pointer);
+  pointer.set(screenX, screenY);
   raycaster.setFromCamera(pointer, camera);
   const intersection = raycaster.intersectObjects(clickTargets, false)[0];
   if (!intersection) return null;
@@ -510,82 +490,16 @@ let currentDpr = maxDpr;
 let highFpsWindows = 0;
 let disposed = false;
 
-const crtPass = new ShaderPass({
-  uniforms: {
-    tDiffuse: { value: null },
-    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform vec2 uResolution;
-    varying vec2 vUv;
-
-    vec2 zoom(vec2 uv, float amount) {
-      return (uv - 0.5) * amount + 0.5;
-    }
-
-    vec3 readTex(vec2 uv) {
-      float edge = (1.0 - smoothstep(0.495, 0.502, abs(uv.x - 0.5)))
-        * (1.0 - smoothstep(0.495, 0.502, abs(uv.y - 0.5)));
-      return texture2D(tDiffuse, clamp(uv, 0.0, 1.0)).rgb * edge;
-    }
-
-    void main() {
-      vec2 p = vUv * 2.0 - 1.0;
-      float aspect = uResolution.x / uResolution.y;
-      // ponytail: portrait screens never reach the curve's full sweep, so treat them as a rotated landscape
-      p.x *= max(aspect, 1.0 / aspect);
-      float radius = length(p);
-
-      float distortion = smoothstep(0.0, 1.0, min(radius * radius * ${CRT_CURVE.toFixed(2)}, 1.0));
-      vec2 uv = zoom(vUv, ${CRT_CENTER_SCALE.toFixed(2)} + distortion * ${(1 - CRT_CENTER_SCALE).toFixed(2)});
-
-      float fringe = smoothstep(0.35, 1.75, radius);
-      vec2 channelOffset = vec2((0.65 + fringe * 2.15) / uResolution.x, 0.0);
-      vec3 color = vec3(
-        readTex(uv + channelOffset).r,
-        readTex(uv).g,
-        readTex(uv - channelOffset).b
-      );
-
-      vec2 vignettePoint = vUv * 2.0 - 1.0;
-      vignettePoint.x *= max(aspect, 1.0);
-      float portrait = 1.0 - step(1.0, aspect);
-      float vignetteStart = mix(1.25, 0.55, portrait);
-      float vignetteEnd = mix(2.9, 1.75, portrait);
-      float vignette = 1.0 - smoothstep(vignetteStart, vignetteEnd, dot(vignettePoint, vignettePoint));
-      color *= mix(1.0, vignette, 0.88);
-
-      gl_FragColor = vec4(max(color, 0.0), 1.0);
-    }
-  `,
-});
-
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-composer.addPass(crtPass);
-composer.addPass(new OutputPass());
-
 function viewportSize() {
-  // ponytail: setSize(..., false) leaves CSS in charge, so measure the box CSS actually gives us
   return [canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight];
 }
 
 function resize() {
   const [width, height] = viewportSize();
   camera.aspect = width / height;
-  camera.fov = width < 768 ? 55 : 46;
+  camera.fov = framedFov(width < 768 ? 55 : 46);
   camera.updateProjectionMatrix();
   renderer.setSize(width, height, false);
-  composer.setSize(width, height);
-  crtPass.uniforms.uResolution.value.set(width, height);
 }
 
 resize();
@@ -595,8 +509,6 @@ function setDpr(value) {
   currentDpr = Math.min(Math.max(value, minDpr), maxDpr);
   renderer.setPixelRatio(currentDpr);
   renderer.setSize(width, height, false);
-  composer.setPixelRatio(currentDpr);
-  composer.setSize(width, height);
 }
 
 function updateFps(now) {
@@ -604,8 +516,6 @@ function updateFps(now) {
   const elapsed = now - fpsWindowStart;
   if (elapsed < 1000) return;
 
-  // A hidden tab has rAF throttled to a crawl, which reads as "the GPU cannot keep up" and
-  // would drop the resolution every time someone switches away. Throw the window out instead.
   if (document.hidden) {
     frameCount = 0;
     fpsWindowStart = now;
@@ -616,7 +526,6 @@ function updateFps(now) {
   lowFpsWindows = fps < 40 && currentDpr > minDpr ? lowFpsWindows + 1 : 0;
   highFpsWindows = fps > 55 && currentDpr < maxDpr ? highFpsWindows + 1 : 0;
 
-  // ponytail: climb back slower than we drop, so one stall does not cost the rest of the session
   if (lowFpsWindows >= 3) {
     setDpr(currentDpr - 0.15);
     lowFpsWindows = 0;
@@ -641,7 +550,7 @@ function render(now) {
   updatePalmSway(animationTime, delta);
   updateFlavorTransition(animationTime, delta);
   controls.update();
-  composer.render();
+  renderer.render(scene, camera);
   updateFps(now);
   requestAnimationFrame(render);
 }
