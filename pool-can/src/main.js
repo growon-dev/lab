@@ -29,14 +29,24 @@ import {
 } from "./effects.js";
 
 const canvas = document.querySelector("#pool-canvas");
-const initialDpr = Math.min(window.devicePixelRatio, mobile ? 1.0 : 1.4);
+
+const CRT_CENTER_SCALE = 0.58;
+const CRT_CURVE = 0.3;
+
+// The CRT pass shows only the middle CRT_CENTER_SCALE of the buffer stretched to full screen, so the
+// scene has to be rendered that much larger just to break even with the display. Supersampling also
+// antialiases, which is why the renderer's own AA is off - MSAA on top would be paid-for and wasted.
+const supersample = mobile ? 1.25 : 1 / CRT_CENTER_SCALE;
+// ponytail: ceiling is deliberately expensive, updateFps() walks it back down if the GPU can't hold 40fps
+const maxDpr = Math.min(window.devicePixelRatio * supersample, mobile ? 2 : 2.6);
+const minDpr = Math.min(maxDpr, window.devicePixelRatio * 0.8);
 
 let renderer;
 
 try {
   renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: !mobile,
+    antialias: false,
     alpha: false,
     powerPreference: "high-performance",
     stencil: false,
@@ -47,7 +57,7 @@ try {
   throw error;
 }
 
-renderer.setPixelRatio(initialDpr);
+renderer.setPixelRatio(maxDpr);
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -111,9 +121,6 @@ let bucketScoop = null;
 let animationTime = 0;
 let pointerStart = null;
 let fizzAccumulator = 0;
-
-const CRT_CENTER_SCALE = 0.58;
-const CRT_CURVE = 0.3;
 
 function settlePalette(palette) {
   currentPalette = palette;
@@ -435,8 +442,9 @@ function updateBucket(time, delta) {
     2.6 + Math.sin(time * 1.7 * motionScale) * (0.08 + Math.abs(tilt) * 0.2);
 }
 
+// Mirrors the radius math in the CRT fragment shader - keep the two in step or clicks miss the can.
 function mapScreenThroughCrt(screenX, screenY, aspect, target) {
-  const radiusSquared = (screenX * aspect) ** 2 + screenY ** 2;
+  const radiusSquared = (screenX * Math.max(aspect, 1 / aspect)) ** 2 + screenY ** 2;
   const distortion = smoothStep(radiusSquared * CRT_CURVE);
   const crtScale = CRT_CENTER_SCALE + distortion * (1 - CRT_CENTER_SCALE);
   target.x = screenX * crtScale;
@@ -498,7 +506,8 @@ let previousTime = startTime;
 let frameCount = 0;
 let fpsWindowStart = performance.now();
 let lowFpsWindows = 0;
-let currentDpr = initialDpr;
+let currentDpr = maxDpr;
+let highFpsWindows = 0;
 let disposed = false;
 
 const crtPass = new ShaderPass({
@@ -531,7 +540,8 @@ const crtPass = new ShaderPass({
     void main() {
       vec2 p = vUv * 2.0 - 1.0;
       float aspect = uResolution.x / uResolution.y;
-      p.x *= aspect;
+      // ponytail: portrait screens never reach the curve's full sweep, so treat them as a rotated landscape
+      p.x *= max(aspect, 1.0 / aspect);
       float radius = length(p);
 
       float distortion = smoothstep(0.0, 1.0, min(radius * radius * ${CRT_CURVE.toFixed(2)}, 1.0));
@@ -563,13 +573,30 @@ composer.addPass(new RenderPass(scene, camera));
 composer.addPass(crtPass);
 composer.addPass(new OutputPass());
 
+function viewportSize() {
+  // ponytail: setSize(..., false) leaves CSS in charge, so measure the box CSS actually gives us
+  return [canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight];
+}
+
 function resize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.fov = window.innerWidth < 768 ? 55 : 46;
+  const [width, height] = viewportSize();
+  camera.aspect = width / height;
+  camera.fov = width < 768 ? 55 : 46;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
-  composer.setSize(window.innerWidth, window.innerHeight);
-  crtPass.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+  renderer.setSize(width, height, false);
+  composer.setSize(width, height);
+  crtPass.uniforms.uResolution.value.set(width, height);
+}
+
+resize();
+
+function setDpr(value) {
+  const [width, height] = viewportSize();
+  currentDpr = Math.min(Math.max(value, minDpr), maxDpr);
+  renderer.setPixelRatio(currentDpr);
+  renderer.setSize(width, height, false);
+  composer.setPixelRatio(currentDpr);
+  composer.setSize(width, height);
 }
 
 function updateFps(now) {
@@ -577,20 +604,25 @@ function updateFps(now) {
   const elapsed = now - fpsWindowStart;
   if (elapsed < 1000) return;
 
-  const fps = Math.round((frameCount * 1000) / elapsed);
-  if (fps < 40 && currentDpr > 0.7) {
-    lowFpsWindows += 1;
-  } else {
-    lowFpsWindows = 0;
+  // A hidden tab has rAF throttled to a crawl, which reads as "the GPU cannot keep up" and
+  // would drop the resolution every time someone switches away. Throw the window out instead.
+  if (document.hidden) {
+    frameCount = 0;
+    fpsWindowStart = now;
+    return;
   }
 
+  const fps = Math.round((frameCount * 1000) / elapsed);
+  lowFpsWindows = fps < 40 && currentDpr > minDpr ? lowFpsWindows + 1 : 0;
+  highFpsWindows = fps > 55 && currentDpr < maxDpr ? highFpsWindows + 1 : 0;
+
+  // ponytail: climb back slower than we drop, so one stall does not cost the rest of the session
   if (lowFpsWindows >= 3) {
-    currentDpr = Math.max(0.7, currentDpr - 0.15);
-    renderer.setPixelRatio(currentDpr);
-    renderer.setSize(window.innerWidth, window.innerHeight, false);
-    composer.setPixelRatio(currentDpr);
-    composer.setSize(window.innerWidth, window.innerHeight);
+    setDpr(currentDpr - 0.15);
     lowFpsWindows = 0;
+  } else if (highFpsWindows >= 6) {
+    setDpr(currentDpr + 0.15);
+    highFpsWindows = 0;
   }
 
   frameCount = 0;
