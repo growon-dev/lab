@@ -69,7 +69,7 @@ function glug(start, base) {
   splutter.connect(band).connect(master);
 }
 
-function glugRun(start, end, topPitch) {
+function streamBed(start, end, peak) {
   const bed = noiseVoice(start, end - start + 0.32);
   const bedFilter = context.createBiquadFilter();
   bedFilter.type = "bandpass";
@@ -77,10 +77,13 @@ function glugRun(start, end, topPitch) {
   bedFilter.frequency.setValueAtTime(900, start);
   bedFilter.frequency.exponentialRampToValueAtTime(1500, end);
   bed.gain.setValueAtTime(0.0001, start);
-  bed.gain.exponentialRampToValueAtTime(0.08, start + 0.12);
+  bed.gain.exponentialRampToValueAtTime(peak, start + 0.12);
   bed.gain.exponentialRampToValueAtTime(0.0001, end + 0.3);
   bed.connect(bedFilter).connect(master);
+}
 
+function glugRun(start, end, topPitch) {
+  streamBed(start, end, 0.08);
   let at = start;
   let pitch = topPitch;
   while (at < end) {
@@ -138,5 +141,5 @@ export function playPalmRustle() {
 export function playBucketPour() {
   ensureContext();
   const now = context.currentTime;
-  glugRun(now + 0.32, now + 1.9, 230);
+  streamBed(now + 0.32, now + 1.9, 0.26);
 }
