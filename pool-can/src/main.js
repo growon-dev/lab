@@ -583,6 +583,12 @@ function dispose() {
   renderer.dispose();
 }
 
+// 스크롤 트랩 1px 고정 - style.css의 2px 여유와 한 쌍(당겨닫기 방어)
+const pinScroll = () => {
+  if (window.scrollY < 1) window.scrollTo(0, 1);
+};
+pinScroll();
+window.addEventListener("scroll", pinScroll, { passive: true });
 window.addEventListener("resize", resize, { passive: true });
 window.addEventListener("pagehide", dispose, { once: true });
 requestAnimationFrame(render);

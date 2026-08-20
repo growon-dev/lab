@@ -10,14 +10,16 @@
 html,
 body {
   width: 100%;
-  height: 100%;
   margin: 0;
-  overflow: hidden;
   background: #05111b;
 }
 
 body {
   overscroll-behavior: none;
+  /* 인앱 브라우저 당겨닫기 방어 - 안드로이드 인앱은 "스크롤 불가 페이지"의 세로
+     제스처를 JS가 받기 전에 네이티브에서 가로채 창을 닫는다. 보이지 않는 2px
+     여유를 두고 main.js가 위치를 1px에 고정해 늘 "스크롤 가능"으로 판정되게 한다. */
+  min-height: calc(100svh + 2px);
 }
 
 .experience {
